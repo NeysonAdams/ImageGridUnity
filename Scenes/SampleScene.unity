@@ -233,7 +233,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 358026571}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ba4d33772f574964e92ec507d5fb09e7, type: 3}
   m_Name: 
@@ -621,8 +621,8 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 974168122}
   - {fileID: 358026572}
+  - {fileID: 974168122}
   m_Father: {fileID: 527314732}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -949,7 +949,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   contentRect: {fileID: 974168122}
-  staticContent: {fileID: 358026572}
+  staticContent: {fileID: 358026573}
   cellPrefab: {fileID: 5936492274133189839, guid: 3a72716acf0d1a84a96876950a4524b1, type: 3}
   layout: {fileID: 974168121}
 --- !u!4 &2142863691
