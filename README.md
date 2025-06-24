@@ -161,6 +161,64 @@ Grid cells can be expanded or collapsed on click to emphasize content or create 
 - Animated scale and shift using DOTween
 - Clean and responsive single-cell expansion behavior
 
+---
+
+### 5. Mouse Input Tracking
+
+This system globally captures user mouse actions and determines the dominant movement axis (horizontal or vertical) to control scroll direction dynamically.
+
+#### How It Works
+
+- On `MouseButtonDown`, the system stores the initial mouse position.
+- On the next frame, it calculates the delta and determines the dominant axis (`XAxis` or `YAxis`).
+- If the movement exceeds a threshold (10px), the axis is confirmed and sent to listeners via `SendAxis`.
+- On `MouseButtonUp`, `ForceStopMouseTrackingAction` is invoked to finalize and reset the interaction.
+
+#### Highlights
+
+- **Clean gesture detection** with one-frame delay to eliminate noise.
+- **Global control logic** that decouples input from scroll and layout logic.
+- Emits events to downstream systems for direction-aware behavior.
+
+---
+
+### 6. Integrated Scroll System
+
+A coordinated architecture between input tracking, scroll behavior, and grid logic.
+
+#### Components
+
+- **MouseInputTracker**  
+  Captures mouse gestures and determines scroll direction.
+
+- **InfiniteScroll**  
+  - Receives axis data from `MouseInputTracker`.
+  - Enables scrolling in the selected axis only.
+  - Resets the scroll position after gesture completion.
+
+- **GridManager**  
+  - Based on the selected `GridCell` and axis:
+    - Picks the corresponding row or column.
+    - Moves those cells to the scrollable area for interaction.
+  - Once scrolling ends, returns them to the static container and resets their logical grid position.
+
+#### Workflow Summary
+
+1. User clicks on a `GridCell` and begins dragging.
+2. `MouseInputTracker` detects the gesture and determines scroll axis.
+3. `InfiniteScroll` locks scrolling to that axis.
+4. `GridManager` selects the affected row or column and injects it into the scrollable container.
+5. After gesture completion:
+   - `InfiniteScroll` resets the scroll position.
+   - `GridManager` returns the moved cells to the static container and restores layout.
+
+#### Key Design Advantages
+
+- Axis-aware gesture detection and movement.
+- Clean separation between input, scrolling logic, and grid structure.
+- Smooth row/column-based drag interactions with auto-reset behavior.
+
+
 >  **Author’s Note**  
 > This project does **not** use architectural patterns like **MVC** or **State Machine**,  
 > as the scope and goals did not require it.  

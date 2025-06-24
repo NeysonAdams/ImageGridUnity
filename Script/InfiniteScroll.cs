@@ -28,11 +28,16 @@ public class InfiniteScroll : MonoBehaviour, IBeginDragHandler, IEndDragHandler
     private int snapDirX = 0;
     private int snapDirY = 0;
 
+    private Vector3 m_contentNullPosition;
+
     private void Awake()
     {
         m_ScrollRect = GetComponent<ScrollRect>();
         m_contnent = m_ScrollRect.content;
         m_layout = m_ScrollRect.content.GetComponent<FullScreenGridLayout>();
+        MouseInputTracker.Instance.SendAxis += SetScrollAxis;
+        MouseInputTracker.Instance.ForceStopMouseTrackingAction += StopMouseTrackingLowMagnitude;
+        m_contentNullPosition = m_contnent.localPosition;
     }
 
     private void Start()
@@ -42,6 +47,7 @@ public class InfiniteScroll : MonoBehaviour, IBeginDragHandler, IEndDragHandler
         centerPosition = Vector2.zero;
 
         m_ScrollRect.onValueChanged.AddListener(OnScroll);
+
     }
 
     private void OnScroll(Vector2 delta)
@@ -91,7 +97,42 @@ public class InfiniteScroll : MonoBehaviour, IBeginDragHandler, IEndDragHandler
                 m_contnent.position = targetPosition;
                 m_isSnapping = false;
                 m_ScrollRect.onValueChanged.AddListener(OnScroll);
+                StartCoroutine( ResetScrollRect());
             });
+    }
+
+    /// <summary>
+    /// Enables scrolling only along the specified axis (horizontal or vertical).
+    /// Disables the other axis to lock scroll direction.
+    /// </summary>
+    /// <param name="axis">The axis along which scrolling should be allowed (XAxis or YAxis).</param>
+    private void SetScrollAxis(Axis axis)
+    {
+        m_ScrollRect.horizontal = axis == Axis.XAxis;
+        m_ScrollRect .vertical = axis == Axis.YAxis;
+
+    }
+
+    /// <summary>
+    /// Stops mouse tracking and triggers a snap if the scroll velocity is low
+    /// and the user performed a minimal movement gesture.
+    /// </summary>
+    private void StopMouseTrackingLowMagnitude(Axis axis)
+    {
+        if (m_ScrollRect.velocity.magnitude > 1 || axis == Axis.None) return;
+        PerformSnapStep();
+    }
+
+    /// <summary>
+    /// Resets the scrollable content position after a row swap is completed.
+    /// This ensures the content snaps back to its original position and mouse tracking is stopped.
+    /// </summary>
+    public IEnumerator ResetScrollRect()
+    {
+        GridManager.Instance.ResetGreed();
+        yield return new WaitForNextFrameUnit();
+        m_contnent.localPosition = m_contentNullPosition;
+        MouseInputTracker.Instance.StopMouseTracking();
     }
 
     public void OnBeginDrag(PointerEventData eventData)

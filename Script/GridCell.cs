@@ -1,5 +1,6 @@
 ﻿using DG.Tweening;
 using NestedScroll.Core;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -28,6 +29,7 @@ public class GridCell : MonoBehaviour,
     private bool m_isColapsed = false;
     private bool m_isMoved = false;
 
+    public Action<Vector2Int, Axis> CallPosition;
 
     private void Awake()
     {
@@ -89,7 +91,7 @@ public class GridCell : MonoBehaviour,
     /// </summary>
     public void OnPointerDown(PointerEventData eventData)
     {
-        
+        StartCoroutine(HoldForAxis());
         if (m_holdCheckRoutine != null)
             StopCoroutine(m_holdCheckRoutine);
 
@@ -124,7 +126,10 @@ public class GridCell : MonoBehaviour,
         while (timer < holdTime)
         {
             if (m_parentScroll.velocity.magnitude > 2f)
-                yield break; // User is scrolling, cancel hold
+            {
+                m_isMoved = true;
+                yield break;
+            }// User is scrolling, cancel hold
 
             timer += Time.unscaledDeltaTime;
             yield return null;
@@ -143,6 +148,14 @@ public class GridCell : MonoBehaviour,
             out Vector2 localPoint);
 
         m_dragOffset = m_rectTransform.anchoredPosition - localPoint;
+    }
+
+    private IEnumerator HoldForAxis()
+    {
+        while (MouseInputTracker.Instance.CurrentAxis == Axis.None)
+            yield return null;
+
+        CallPosition?.Invoke(gridPosition, MouseInputTracker.Instance.CurrentAxis);
     }
 
     /// <summary>
@@ -229,7 +242,7 @@ public class GridCell : MonoBehaviour,
             .OnComplete(() =>
             {
                 GridManager.Instance.SetLayoutActive(true);
-
+                m_isMoved = false;
             });
     }
 
@@ -325,7 +338,7 @@ public class GridCell : MonoBehaviour,
     public void Collapse(float width)
     {
         // Determine direction of expansion based on whether the cell is on the left or right side of the grid
-        int kof = GridManager.Instance.CheckGridPosition(gridPosition) ? -1 : 1;
+        int kof = gridPosition.x == 2 ? -1 : 1;
 
         // Calculate target X position for local shift when expanded
         float targetPosX = m_isColapsed ? 0 : kof * (width/2+10);
@@ -348,6 +361,11 @@ public class GridCell : MonoBehaviour,
             });
         // Animate horizontal shift to visually offset the expanded cell
         interactiveRectTrasform.DOLocalMoveX(targetPosX, 0.1f);
+    }
+
+    public void ResetCell()
+    {
+        m_isMoved = false;
     }
     #endregion
 }

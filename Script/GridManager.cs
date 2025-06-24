@@ -15,6 +15,7 @@ public class GridManager : MonoBehaviour
 
     [Header("Referens")]
     [SerializeField] private RectTransform contentRect;
+    [SerializeField] private FullScreenGridLayout staticContent;
     [SerializeField] private GameObject cellPrefab;
     [SerializeField] private FullScreenGridLayout layout;
 
@@ -22,10 +23,11 @@ public class GridManager : MonoBehaviour
 
     private int totalRows;
     private int totalCols;
-    private int minX = -1, maxY = 3;
+    private int minX = -1, minY = 3;
     private GridCell[,] grid;
     private float leftBound, rightBound, topBound, bottomBound;
     private Vector3 nullPosition;
+    private IEnumerable<GridCell> movableCells;
 
     private void Awake()
     {
@@ -43,7 +45,7 @@ public class GridManager : MonoBehaviour
 
         SpawnGrid();
         yield return new WaitForEndOfFrame();
-
+        PutAllCellInStatick();
         CalculateBounds();
     }
 
@@ -65,9 +67,47 @@ public class GridManager : MonoBehaviour
 
                 cell.SetGridPosition(new Vector2Int(gridX, gridY));
                 cell.SetColliderSize(new Vector2(w,h));
+                cell.CallPosition += PutCellsInLine;
                 grid[x, y] = cell;
             }
         }
+    }
+
+    /// <summary>
+    /// Moves all GridCell elements from the grid into the static container,
+    /// preserving their world position.
+    /// </summary>
+    private void PutAllCellInStatick()
+    {
+        var castGrid = grid.Cast<GridCell>();
+
+        foreach (GridCell cell in castGrid)
+            cell.transform.parent = staticContent.transform;
+    }
+
+    /// <summary>
+    /// Called from a GridCell to move all cells in the same row or column (depending on the given axis)
+    /// into the scrollable content container (contentRect).
+    /// </summary>
+    /// <param name="gridPosition">The grid position of the selected cell.</param>
+    /// <param name="axis">The axis along which the selection is made (XAxis or YAxis).</param>
+    public void PutCellsInLine(Vector2Int gridPosition, Axis axis)
+    {
+        if (axis == Axis.None) return;
+        var castGrid = grid.Cast<GridCell>();
+
+        movableCells = axis switch
+        {
+            Axis.XAxis => castGrid.Where(cell => cell.GridPosition.y == gridPosition.y),
+            Axis.YAxis => castGrid.Where(cell => cell.GridPosition.x == gridPosition.x),
+            _ => Enumerable.Empty<GridCell>()
+        };
+        foreach (var cell in movableCells)
+        {
+            cell.transform.parent = contentRect;
+        }
+
+        
     }
 
     public void SetLayoutActive(bool active)
@@ -133,22 +173,64 @@ public class GridManager : MonoBehaviour
     /// </summary>
     public Vector2 GetSnapOffset()
     {
-        var castGrid = grid.Cast<GridCell>();
+        var castGrid = movableCells;
+        var axis = MouseInputTracker.Instance.CurrentAxis;
 
         // Find the minimum X and maximum Y among all grid cells
         minX = castGrid.Where(c => c != null).Min(c => c.GridPosition.x);
-        maxY = castGrid.Where(c => c != null).Max(c => c.GridPosition.y);
+        minY = castGrid.Where(c => c != null).Max(c => c.GridPosition.y);
 
         // Find the target cell that is one step right and one step down from the top-left corner
         GridCell targetCell = castGrid
             .FirstOrDefault(c => c != null &&
-                                 c.GridPosition.x == minX + 1 &&
-                                 c.GridPosition.y == maxY - 1);
+                                 (c.GridPosition.x == minX+1 && axis == Axis.XAxis) ||
+                                 (c.GridPosition.y == minY-1 && axis == Axis.YAxis));
+
 
         // Get the current world position of that target cell
         Vector3 targetPosition = targetCell.transform.position;
+        
+        Vector3 extraNullPosition = new Vector3(
+            axis == Axis.XAxis ? nullPosition.x : targetPosition.x,
+            axis == Axis.YAxis ? nullPosition.y : targetPosition.y,
+            nullPosition.z);
 
-        return targetPosition - nullPosition;
+        return targetPosition - extraNullPosition;
+    }
+    /// <summary>
+    /// Resets the grid by collecting all movable GridCell components from the scrollable content area,
+    /// sorting them along the current mouse movement axis (X or Y),
+    /// assigning them new sequential grid positions, and reparenting them to a static container
+    /// while preserving their world positions.
+    /// </summary>
+    public void ResetGreed()
+    {
+        // Get all active GridCell components from the scrollable content
+        movableCells = contentRect.GetComponentsInChildren<GridCell>(includeInactive: false);
+
+        // Get the current axis along which the mouse moved (X or Y)
+        var axis = MouseInputTracker.Instance.CurrentAxis;
+
+        // Sort cells by local position.x if X-axis, otherwise by local position.y
+        movableCells = movableCells.OrderBy(c => axis == Axis.XAxis ?
+                                                        c.transform.localPosition.x :
+                                                        c.transform.localPosition.y);
+
+        int i = -1;// Index counter used to assign new grid positions
+
+        foreach (var cell in movableCells)
+        {
+            // Set a new grid position for the cell along the active axis
+            cell.SetGridPosition(new Vector2Int(axis == Axis.XAxis ? i : cell.GridPosition.x,
+                                                axis == Axis.YAxis ? i : cell.GridPosition.y));
+            i++;
+            cell.transform.SetParent(staticContent.transform, worldPositionStays: true);
+
+            cell.ResetCell();
+            
+        }
+
+
     }
 
     #endregion
@@ -156,17 +238,7 @@ public class GridManager : MonoBehaviour
 
     #region Collapse Logic
 
-    /// <summary>
-    /// Determines the expansion direction of a cell based on its horizontal (X) grid position.
-    /// Used to decide whether the cell should collapse left or right.
-    /// </summary>
-    /// <param name="gridPosition">The grid position of the cell</param>
-    /// <returns>True if the cell is on the right side (should collapse left), otherwise false</returns>
-
-    public bool CheckGridPosition(Vector2Int gridPosition)
-    {
-        return minX + 3 == gridPosition.x;
-    }
+    
     /// <summary>
     /// Centralized method for handling cell collapse logic. 
     /// Ensures that only one cell is expanded at a time.
